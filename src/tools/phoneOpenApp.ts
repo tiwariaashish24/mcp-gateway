@@ -1,13 +1,5 @@
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import * as z from "zod/v4";
-
-const execFileAsync = promisify(execFile);
-
-const ADB_PATH =
-  "C:\\Users\\ujjaw\\Desktop\\platform-tools-latest-windows\\platform-tools\\adb.exe";
-
-const ADB_TARGET = "192.168.1.27:5555";
+import { getDevices, shell } from "../adb/adbClient.js";
 
 const appPackages: Record<string, string> = {
   camera: "com.oplus.camera",
@@ -47,21 +39,28 @@ export async function phoneOpenApp({
       };
     }
 
-    const { stdout, stderr } = await execFileAsync(
-      ADB_PATH,
-      [
-        "-s",
-        ADB_TARGET,
-        "shell",
-        "monkey",
-        "-p",
-        packageName,
-        "1",
-      ],
-      {
-        windowsHide: true,
-      }
-    );
+    const devices = await getDevices();
+
+    if (devices.length === 0) {
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: "No Android device is currently connected to ADB.",
+          },
+        ],
+        isError: true,
+      };
+    }
+
+    const device = devices[0];
+
+    const { stdout, stderr } = await shell(device.serial, [
+      "monkey",
+      "-p",
+      packageName,
+      "1",
+    ]);
 
     return {
       content: [
@@ -69,6 +68,7 @@ export async function phoneOpenApp({
           type: "text" as const,
           text:
             `Opened ${appName}\n` +
+            `Device: ${device.serial}\n` +
             `Package: ${packageName}\n` +
             `${stdout || stderr}`,
         },
