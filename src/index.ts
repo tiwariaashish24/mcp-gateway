@@ -2,18 +2,15 @@ import { McpServer } from "@modelcontextprotocol/server";
 import { serveStdio } from "@modelcontextprotocol/server/stdio";
 import * as z from "zod/v4";
 
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
+import {
+  shell,
+  getDevices,
+} from "./adb/adbClient.js";
 
-const execFileAsync = promisify(execFile);
-
-
-
-// ADB path
-const ADB_PATH =
-  "C:\\Users\\ujjaw\\Desktop\\platform-tools-latest-windows\\platform-tools\\adb.exe";
-
-  const ADB_TARGET = "10.63.54.47:5555";
+import {
+  phoneOpenApp,
+  phoneOpenAppSchema,
+} from "./tools/phoneOpenApp.js";
 
 const server = new McpServer({
   name: "phone-control-mcp",
@@ -27,7 +24,8 @@ const server = new McpServer({
 server.registerTool(
   "hello_phone",
   {
-    description: "Test communication with the phone control MCP server",
+    description:
+      "Test communication with the phone control MCP server",
 
     inputSchema: z.object({
       message: z.string(),
@@ -59,7 +57,9 @@ server.registerTool(
     inputSchema: z.object({
       url: z.string().url(),
 
-      method: z.enum(["GET", "POST"]).default("GET"),
+      method: z
+        .enum(["GET", "POST"])
+        .default("GET"),
 
       body: z.string().optional(),
     }),
@@ -74,16 +74,23 @@ server.registerTool(
           "Content-Type": "application/json",
         },
 
-        body: method === "POST" ? body : undefined,
+        body:
+          method === "POST"
+            ? body
+            : undefined,
       });
 
-      const responseText = await response.text();
+      const responseText =
+        await response.text();
 
       return {
         content: [
           {
             type: "text",
-            text: `HTTP ${response.status}\n${responseText}`,
+
+            text:
+              `HTTP ${response.status}\n` +
+              responseText,
           },
         ],
       };
@@ -92,9 +99,13 @@ server.registerTool(
         content: [
           {
             type: "text",
-            text: `Wi-Fi request failed: ${
-              error instanceof Error ? error.message : String(error)
-            }`,
+
+            text:
+              `Wi-Fi request failed: ${
+                error instanceof Error
+                  ? error.message
+                  : String(error)
+              }`,
           },
         ],
 
@@ -119,25 +130,54 @@ server.registerTool(
 
   async () => {
     try {
-      const { stdout } = await execFileAsync(
-        ADB_PATH,
-        ["-s", ADB_TARGET, "shell", "dumpsys", "battery"],
-        {
-          windowsHide: true,
-        }
+      // Get currently connected ADB devices
+      const devices = await getDevices();
+
+      if (devices.length === 0) {
+        return {
+          content: [
+            {
+              type: "text",
+
+              text:
+                "No Android device is currently connected to ADB.\n\n" +
+                "Connect the phone through USB or Wi-Fi ADB and try again.",
+            },
+          ],
+
+          isError: true,
+        };
+      }
+
+      // For now use the first available device.
+      // DeviceManager will later handle multiple phones.
+      const device = devices[0];
+
+      const { stdout } = await shell(
+        device.serial,
+        [
+          "dumpsys",
+          "battery",
+        ]
       );
 
-      const levelMatch = stdout.match(/level:\s*(\d+)/);
+      const levelMatch =
+        stdout.match(/level:\s*(\d+)/);
 
-      const batteryLevel = levelMatch
-        ? `${levelMatch[1]}%`
-        : "Unknown";
+      const batteryLevel =
+        levelMatch
+          ? `${levelMatch[1]}%`
+          : "Unknown";
 
       return {
         content: [
           {
             type: "text",
-            text: `Phone battery: ${batteryLevel}\n\n${stdout}`,
+
+            text:
+              `Device: ${device.serial}\n` +
+              `Battery: ${batteryLevel}\n\n` +
+              stdout,
           },
         ],
       };
@@ -146,9 +186,13 @@ server.registerTool(
         content: [
           {
             type: "text",
-            text: `Failed to get phone battery: ${
-              error instanceof Error ? error.message : String(error)
-            }`,
+
+            text:
+              `Failed to get phone battery: ${
+                error instanceof Error
+                  ? error.message
+                  : String(error)
+              }`,
           },
         ],
 
@@ -159,9 +203,27 @@ server.registerTool(
 );
 
 // ============================================================
+// 4. OPEN PHONE APP TOOL
+// ============================================================
+
+server.registerTool(
+  "phone_open_app",
+  {
+    description:
+      "Open an application on the connected Android phone",
+
+    inputSchema: phoneOpenAppSchema,
+  },
+
+  phoneOpenApp
+);
+
+// ============================================================
 // START MCP SERVER
 // ============================================================
 
 serveStdio(() => server);
 
-console.error("Phone Control MCP Server started");
+console.error(
+  "Phone Control MCP Server started"
+);
