@@ -5,10 +5,7 @@ import * as z from "zod/v4";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
-import {
-  phoneOpenApp,
-  phoneOpenAppSchema,
-} from "./tools/phoneOpenApp.js";
+import { phoneOpenApp, phoneOpenAppSchema, } from "./tools/phoneOpenApp.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -18,7 +15,7 @@ const execFileAsync = promisify(execFile);
 const ADB_PATH =
   "C:\\Users\\ujjaw\\Desktop\\platform-tools-latest-windows\\platform-tools\\adb.exe";
 
-  const ADB_TARGET = "10.63.54.47:5555";
+  const ADB_TARGET = "192.168.1.27:5555";
 
 const server = new McpServer({
   name: "phone-control-mcp",

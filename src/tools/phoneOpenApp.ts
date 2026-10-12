@@ -7,7 +7,7 @@ const execFileAsync = promisify(execFile);
 const ADB_PATH =
   "C:\\Users\\ujjaw\\Desktop\\platform-tools-latest-windows\\platform-tools\\adb.exe";
 
-const ADB_TARGET = "10.63.54.47:5555";
+const ADB_TARGET = "192.168.1.27:5555";
 
 const appPackages: Record<string, string> = {
   camera: "com.oplus.camera",
