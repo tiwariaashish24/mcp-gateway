@@ -146,6 +146,7 @@ export async function androidDevice({
         };
       }
 
+
       case "phone_list_files": {
         const { stdout } = await shell(device.serial, [
           "ls",
@@ -212,17 +213,29 @@ export async function androidDevice({
           ]
         };
 
-      case "whatsapp_open":
+
+
+          
+      case "whatsapp_open": {
+        const { stdout } = await shell(device.serial, [
+          "monkey",
+          "-p",
+          "com.whatsapp",
+          "-c",
+          "android.intent.category.LAUNCHER",
+          "1"
+        ]);
+
         return {
           content: [
             {
               type: "text" as const,
-              text:
-                "whatsapp_open selected.\n" +
-                "WhatsApp UI controller will be connected here."
+              text: `WhatsApp launch requested on device ${device.serial}.\n${stdout}`
             }
           ]
         };
+      }
+
 
       case "whatsapp_find_chat":
         return {
