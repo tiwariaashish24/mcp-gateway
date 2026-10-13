@@ -235,6 +235,7 @@ export async function androidDevice({
     const device = devices[0];
 
     switch (command) {
+
       case "phone_get_contacts":
         return {
           content: [
@@ -248,29 +249,33 @@ export async function androidDevice({
           ]
         };
 
-      case "phone_get_photos": {
-        const { stdout } = await shell(device.serial, [
-          "content",
-          "query",
-          "--uri",
-          "content://media/external/images/media",
-          "--projection",
-          "_id:_display_name:mime_type:size:date_added",
-          "--sort",
-          "date_added DESC"
-        ]);
-
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text:
-                `Device: ${device.serial}\n\n` +
-                `Photos:\n${stdout || "No photos found."}`
-            }
-          ]
-        };
-      }
+ 
+        case "phone_get_photos": {
+          const { stdout } = await shell(device.serial, [
+            "find",
+            "/sdcard/DCIM/Camera",
+            "-maxdepth",
+            "1",
+            "-type",
+            "f"
+          ]);
+          const files = stdout
+            .split(/\r?\n/)
+            .map((file) => file.trim())
+            .filter((file) => /\.(jpg|jpeg|png|webp|heic|mp4|mov)$/i.test(file));
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text:
+                  `Device: ${device.serial}\n` +
+                  `Total photos and videos: ${files.length}\n\n` +
+                  (files.length > 0 ? files.join("\n") : "No photos or videos found.")
+              }
+            ]
+          };
+        }
+  
 
       case "phone_list_apps": {
         const { stdout } = await shell(device.serial, [
@@ -310,18 +315,40 @@ export async function androidDevice({
         };
       }
 
-      case "phone_download_file":
+      case "phone_download_file": {
+        if (!value?.trim()) {
+          return {
+            content: [{ type: "text" as const, text: "Provide the full phone file path in value." }],
+            isError: true
+          };
+        }
+        const remotePath = path.posix.normalize(value.trim());
+        const allowedRoots = ["/sdcard/DCIM/", "/sdcard/Pictures/", "/sdcard/Download/"];
+        if (!allowedRoots.some((root) => remotePath.startsWith(root)) || remotePath.includes("..")) {
+          return {
+            content: [{ type: "text" as const, text: "File path must be inside DCIM, Pictures, or Download." }],
+            isError: true
+          };
+        }
+        const fileName = path.posix.basename(remotePath);
+        if (!fileName || fileName === "." || fileName === "/") {
+          return {
+            content: [{ type: "text" as const, text: "Invalid file path." }],
+            isError: true
+          };
+        }
+        const downloadsDir = path.resolve(process.cwd(), "downloads");
+        await mkdir(downloadsDir, { recursive: true });
+        const localPath = path.join(downloadsDir, fileName);
+        await adb(["-s", device.serial, "pull", remotePath, localPath]);
         return {
-          content: [
-            {
-              type: "text" as const,
-              text:
-                `phone_download_file selected.\n` +
-                `Requested file: ${value ?? "No file specified"}\n\n` +
-                "File download gateway will be connected here."
-            }
-          ]
+          content: [{
+            type: "text" as const,
+            text: `Download successful.\nDevice: ${device.serial}\nSource: ${remotePath}\nSaved to: ${localPath}`
+          }]
         };
+      }
+
 
       case "phone_open_app":
         return {
